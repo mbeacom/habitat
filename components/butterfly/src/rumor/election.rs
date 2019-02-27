@@ -36,6 +36,7 @@ use crate::{error::{Error,
             rumor::{Rumor,
                     RumorPayload,
                     RumorType}};
+use uuid::Uuid;
 
 pub trait ElectionRumor {
     fn member_id(&self) -> &str;
@@ -55,6 +56,7 @@ pub struct Election {
     pub suitability:   u64,
     pub status:        ElectionStatus,
     pub votes:         Vec<String>,
+    pub uuid:          String,
 }
 
 impl Election {
@@ -78,7 +80,8 @@ impl Election {
                    } else {
                        ElectionStatus::NoQuorum
                    },
-                   votes: vec![from_id] }
+                   votes: vec![from_id],
+                   uuid: Uuid::new_v4().to_simple_ref().to_string() }
     }
 
     /// Insert a vote for the election.
@@ -142,7 +145,9 @@ impl FromProto<ProtoRumor> for Election {
                       status:        payload.status
                                             .and_then(ElectionStatus::from_i32)
                                             .unwrap_or(ElectionStatus::Running),
-                      votes:         payload.votes, })
+                      votes:         payload.votes,
+                      uuid:          payload.uuid
+                                            .unwrap_or(Uuid::new_v4().to_simple_ref().to_string()), })
     }
 }
 
@@ -153,7 +158,8 @@ impl From<Election> for newscast::Election {
                              term:          Some(value.term),
                              suitability:   Some(value.suitability),
                              status:        Some(value.status as i32),
-                             votes:         value.votes, }
+                             votes:         value.votes,
+                             uuid:          Some(value.uuid), }
     }
 }
 
@@ -205,6 +211,8 @@ impl Rumor for Election {
     fn id(&self) -> &str { "election" }
 
     fn key(&self) -> &str { self.service_group.as_ref() }
+
+    fn uuid(&self) -> &str { &self.uuid }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -266,6 +274,8 @@ impl Rumor for ElectionUpdate {
     fn id(&self) -> &str { "election" }
 
     fn key(&self) -> &str { self.0.key() }
+
+    fn uuid(&self) -> &str { &self.0.uuid }
 }
 
 #[cfg(test)]

@@ -34,6 +34,7 @@ use std::{cmp::Ordering,
           str::{self,
                 FromStr}};
 use toml;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ServiceConfig {
@@ -42,6 +43,7 @@ pub struct ServiceConfig {
     pub incarnation:   u64,
     pub encrypted:     bool,
     pub config:        Vec<u8>, // TODO: make this a String
+    pub uuid:          String,
 }
 
 impl PartialOrd for ServiceConfig {
@@ -72,7 +74,8 @@ impl ServiceConfig {
                         service_group,
                         incarnation: 0,
                         encrypted: false,
-                        config }
+                        config,
+                        uuid: Uuid::new_v4().to_simple_ref().to_string() }
     }
 
     pub fn encrypt(&mut self, user_pair: &BoxKeyPair, service_pair: &BoxKeyPair) -> Result<()> {
@@ -129,7 +132,10 @@ impl FromProto<ProtoRumor> for ServiceConfig {
                                       })?,
                            incarnation:   payload.incarnation.unwrap_or(0),
                            encrypted:     payload.encrypted.unwrap_or(false),
-                           config:        payload.config.unwrap_or_default(), })
+                           config:        payload.config.unwrap_or_default(),
+                           uuid:
+                               payload.uuid
+                                      .unwrap_or(Uuid::new_v4().to_simple_ref().to_string()), })
     }
 }
 
@@ -138,7 +144,8 @@ impl From<ServiceConfig> for newscast::ServiceConfig {
         newscast::ServiceConfig { service_group: Some(value.service_group.to_string()),
                                   incarnation:   Some(value.incarnation),
                                   encrypted:     Some(value.encrypted),
-                                  config:        Some(value.config), }
+                                  config:        Some(value.config),
+                                  uuid:          Some(value.uuid), }
     }
 }
 
@@ -159,6 +166,8 @@ impl Rumor for ServiceConfig {
     fn id(&self) -> &str { "service_config" }
 
     fn key(&self) -> &str { &self.service_group }
+
+    fn uuid(&self) -> &str { &self.uuid }
 }
 
 #[cfg(test)]

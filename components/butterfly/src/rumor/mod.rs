@@ -127,6 +127,7 @@ pub trait Rumor: Message<ProtoRumor> + Sized {
     fn key(&self) -> &str;
     fn id(&self) -> &str;
     fn merge(&mut self, other: Self) -> bool;
+    fn uuid(&self) -> &str;
 }
 
 impl<'a, T: Rumor> From<&'a T> for RumorKey {
