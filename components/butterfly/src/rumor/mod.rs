@@ -28,25 +28,6 @@ pub mod service;
 pub mod service_config;
 pub mod service_file;
 
-use std::{collections::{hash_map::Entry,
-                        HashMap},
-          default::Default,
-          ops::Deref,
-          result,
-          sync::{atomic::{AtomicUsize,
-                          Ordering},
-                 Arc,
-                 RwLock}};
-
-use bytes::BytesMut;
-use prometheus::IntCounterVec;
-use prost::Message as ProstMessage;
-use serde::{ser::{SerializeMap,
-                  SerializeSeq,
-                  SerializeStruct},
-            Serialize,
-            Serializer};
-
 pub use self::{departure::Departure,
                election::{Election,
                           ElectionUpdate},
@@ -61,6 +42,26 @@ use crate::{error::{Error,
             member::Membership,
             protocol::{FromProto,
                        Message}};
+use bytes::BytesMut;
+use chrono::{offset::Utc,
+             DateTime,
+             Duration};
+use prometheus::IntCounterVec;
+use prost::Message as ProstMessage;
+use serde::{ser::{SerializeMap,
+                  SerializeSeq,
+                  SerializeStruct},
+            Serialize,
+            Serializer};
+use std::{collections::{hash_map::Entry,
+                        HashMap},
+          default::Default,
+          ops::Deref,
+          result,
+          sync::{atomic::{AtomicUsize,
+                          Ordering},
+                 Arc,
+                 RwLock}};
 
 lazy_static! {
     static ref IGNORED_RUMOR_COUNT: IntCounterVec =
@@ -96,6 +97,54 @@ impl From<RumorKind> for RumorPayload {
     }
 }
 
+// Originally I was going to have expiration be time_to_live, as a Duration, but it turns out
+// Durations aren't easily parseable.
+#[derive(Debug, Clone)]
+pub struct RumorTTL {
+    pub expiration:   DateTime<Utc>,
+    pub last_refresh: DateTime<Utc>,
+}
+
+// It may not make sense to have a default for this, but I'm putting it in for now, to simplify
+// things
+impl Default for RumorTTL {
+    fn default() -> Self {
+        let now = Utc::now();
+
+        RumorTTL { expiration:   now + Duration::hours(1),
+                   last_refresh: now, }
+    }
+}
+
+impl RumorTTL {
+    pub fn for_proto(&self) -> (String, String) {
+        (self.expiration.to_rfc3339(), self.last_refresh.to_rfc3339())
+    }
+
+    pub fn from_proto(expiration: Option<String>, last_refresh: Option<String>) -> Result<Self> {
+        if expiration.is_none() || last_refresh.is_none() {
+            return Ok(RumorTTL::default());
+        }
+
+        let exp = DateTime::parse_from_rfc3339(&expiration.unwrap())?;
+        let lref = DateTime::parse_from_rfc3339(&last_refresh.unwrap())?;
+
+        Ok(RumorTTL { expiration:   exp.with_timezone(&Utc),
+                      last_refresh: lref.with_timezone(&Utc), })
+    }
+}
+
+impl Serialize for RumorTTL {
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let mut strukt = serializer.serialize_struct("rumor_ttl", 2)?;
+        strukt.serialize_field("expiration", &self.expiration.to_rfc3339())?;
+        strukt.serialize_field("last_refresh", &self.last_refresh.to_rfc3339())?;
+        strukt.end()
+    }
+}
+
 /// The description of a `RumorKey`.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RumorKey {
@@ -128,6 +177,7 @@ pub trait Rumor: Message<ProtoRumor> + Sized {
     fn id(&self) -> &str;
     fn merge(&mut self, other: Self) -> bool;
     fn uuid(&self) -> &str;
+    fn ttl(&self) -> &RumorTTL;
 }
 
 impl<'a, T: Rumor> From<&'a T> for RumorKey {

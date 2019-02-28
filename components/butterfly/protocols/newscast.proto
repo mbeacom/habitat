@@ -13,6 +13,8 @@ message Election {
   optional Status status = 5;
   repeated string votes = 6;
   optional string uuid = 7;
+  optional string expiration = 8;
+  optional string last_refresh = 9;
 }
 
 message Service {
@@ -24,6 +26,8 @@ message Service {
   optional bytes cfg = 10;
   optional SysInfo sys = 12;
   optional string uuid = 7;
+  optional string expiration = 13;
+  optional string last_refresh = 14;
 }
 
 message ServiceConfig {
@@ -32,6 +36,8 @@ message ServiceConfig {
   optional bool encrypted = 3;
   optional bytes config = 4;
   optional string uuid = 5;
+  optional string expiration = 6;
+  optional string last_refresh = 7;
 }
 
 message ServiceFile {
@@ -41,6 +47,8 @@ message ServiceFile {
   optional string filename = 4;
   optional bytes body = 5;
   optional string uuid = 6;
+  optional string expiration = 7;
+  optional string last_refresh = 8;
 }
 
 message SysInfo {
@@ -57,6 +65,8 @@ message SysInfo {
 message Departure {
   optional string member_id = 1;
   optional string uuid = 2;
+  optional string expiration = 3;
+  optional string last_refresh = 4;
 }
 
 message Rumor {
