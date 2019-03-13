@@ -1,28 +1,14 @@
-// Copyright (c) 2018 Chef Software Inc. and/or applicable contributors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-//! Periodically check membership rumors to automatically "time out"
+//! Periodically check membership rumors to automatically time out
 //! `Suspect` rumors to `Confirmed`, and `Confirmed` rumors to
-//! `Departed`.
-
-use std::{thread,
-          time::Duration};
+//! `Departed`. This also expires any rumors that have expiration dates.
 
 use crate::{rumor::{RumorKey,
                     RumorType},
             server::{timing::Timing,
                      Server}};
+use chrono::offset::Utc;
+use std::{thread,
+          time::Duration};
 
 const LOOP_DELAY_MS: u64 = 500;
 
@@ -58,6 +44,16 @@ impl Expire {
                     .rumor_heat
                     .start_hot_rumor(RumorKey::new(RumorType::Member, &id, ""));
             }
+
+            // JB TODO: How does this work for members, since members aren't /quite/
+            // the same kind of rumor
+            let now = Utc::now();
+            self.server.departure_store.purge_expired(now);
+            self.server.election_store.purge_expired(now);
+            self.server.update_store.purge_expired(now);
+            self.server.service_store.purge_expired(now);
+            self.server.service_config_store.purge_expired(now);
+            self.server.service_file_store.purge_expired(now);
 
             thread::sleep(Duration::from_millis(LOOP_DELAY_MS));
         }

@@ -1,17 +1,3 @@
-// Copyright (c) 2016-2017 Chef Software Inc. and/or applicable contributors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //! The Butterfly server.
 //!
 //! Creates `Server` structs, that hold everything we need to run the SWIM and Gossip protocol.
@@ -26,38 +12,6 @@ mod outbound;
 mod pull;
 mod push;
 pub mod timing;
-
-use std::{collections::{HashMap,
-                        HashSet},
-          fmt::{self,
-                Debug},
-          fs,
-          io,
-          net::{SocketAddr,
-                ToSocketAddrs,
-                UdpSocket},
-          path::{Path,
-                 PathBuf},
-          result,
-          sync::{atomic::{AtomicBool,
-                          AtomicIsize,
-                          Ordering},
-                 mpsc::{self,
-                        channel},
-                 Arc,
-                 Mutex,
-                 RwLock},
-          thread,
-          time::{Duration,
-                 Instant}};
-
-use habitat_core::crypto::SymKey;
-use prometheus::{HistogramTimer,
-                 HistogramVec,
-                 IntGauge};
-use serde::{ser::SerializeStruct,
-            Serialize,
-            Serializer};
 
 use self::incarnation_store::IncarnationStore;
 use crate::{error::{Error,
@@ -85,6 +39,36 @@ use crate::{error::{Error,
             swim::Ack,
             trace::{Trace,
                     TraceKind}};
+use habitat_core::crypto::SymKey;
+use prometheus::{HistogramTimer,
+                 HistogramVec,
+                 IntGauge};
+use serde::{ser::SerializeStruct,
+            Serialize,
+            Serializer};
+use std::{collections::{HashMap,
+                        HashSet},
+          fmt::{self,
+                Debug},
+          fs,
+          io,
+          net::{SocketAddr,
+                ToSocketAddrs,
+                UdpSocket},
+          path::{Path,
+                 PathBuf},
+          result,
+          sync::{atomic::{AtomicBool,
+                          AtomicIsize,
+                          Ordering},
+                 mpsc::{self,
+                        channel},
+                 Arc,
+                 Mutex,
+                 RwLock},
+          thread,
+          time::{Duration,
+                 Instant}};
 
 /// The maximum number of other members we should notify when we shut
 /// down and leave the ring.

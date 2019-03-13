@@ -1,17 +1,3 @@
-// Copyright (c) 2017 Chef Software Inc. and/or applicable contributors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //! Tracks rumors for distribution.
 //!
 //! Each rumor is represented by a `RumorKey`, which has a unique key and a "kind", which
@@ -363,15 +349,24 @@ impl<T> RumorStore<T> where T: Rumor
                      ..Default::default() }
     }
 
+    fn read_entries(&self) -> std::sync::RwLockReadGuard<'_, HashMap<String, HashMap<String, T>>> {
+        self.list.read().expect("Rumor store lock poisoned")
+    }
+
+    fn write_entries(&self)
+                     -> std::sync::RwLockWriteGuard<'_, HashMap<String, HashMap<String, T>>> {
+        self.list.write().expect("Rumor store lock poisoned")
+    }
+
     /// Clear all rumors and reset update counter of RumorStore.
     pub fn clear(&self) -> usize {
-        let mut list = self.list.write().expect("Rumor store lock poisoned");
+        let mut list = self.write_entries();
         list.clear();
         self.update_counter.swap(0, Ordering::Relaxed)
     }
 
     pub fn encode(&self, key: &str, member_id: &str) -> Result<Vec<u8>> {
-        let list = self.list.read().expect("Rumor store lock poisoned");
+        let list = self.read_entries();
         match list.get(key).and_then(|l| l.get(member_id)) {
             Some(rumor) => rumor.clone().write_to_bytes(),
             None => Err(Error::NonExistentRumor(String::from(member_id), String::from(key))),
@@ -382,14 +377,14 @@ impl<T> RumorStore<T> where T: Rumor
 
     /// Returns the count of all rumors in the rumor store for the given member's key.
     pub fn len_for_key(&self, key: &str) -> usize {
-        let list = self.list.read().expect("Rumor store lock poisoned");
+        let list = self.read_entries();
         list.get(key).map_or(0, |r| r.len())
     }
 
     /// Insert a rumor into the Rumor Store. Returns true if the value didn't exist or if it was
     /// mutated; if nothing changed, returns false.
     pub fn insert(&self, rumor: T) -> bool {
-        let mut list = self.list.write().expect("Rumor store lock poisoned");
+        let mut list = self.write_entries();
         let rumors = list.entry(String::from(rumor.key()))
                          .or_insert_with(HashMap::new);
         let kind_ignored_count =
@@ -402,6 +397,7 @@ impl<T> RumorStore<T> where T: Rumor
                 true
             }
         };
+
         if result {
             self.increment_update_counter();
         } else {
@@ -409,18 +405,19 @@ impl<T> RumorStore<T> where T: Rumor
             // rumor. Let's track that.
             kind_ignored_count.inc();
         }
+
         result
     }
 
     pub fn remove(&self, key: &str, id: &str) {
-        let mut list = self.list.write().expect("Rumor store lock poisoned");
+        let mut list = self.write_entries();
         list.get_mut(key).and_then(|r| r.remove(id));
     }
 
     pub fn with_keys<F>(&self, mut with_closure: F)
         where F: FnMut((&String, &HashMap<String, T>))
     {
-        let list = self.list.read().expect("Rumor store lock poisoned");
+        let list = self.read_entries();
         for x in list.iter() {
             with_closure(x);
         }
@@ -429,7 +426,7 @@ impl<T> RumorStore<T> where T: Rumor
     pub fn with_rumors<F>(&self, key: &str, mut with_closure: F)
         where F: FnMut(&T)
     {
-        let list = self.list.read().expect("Rumor store lock poisoned");
+        let list = self.read_entries();
         if list.contains_key(key) {
             for x in list.get(key).unwrap().values() {
                 with_closure(x);
@@ -440,7 +437,7 @@ impl<T> RumorStore<T> where T: Rumor
     pub fn with_rumor<F>(&self, key: &str, member_id: &str, mut with_closure: F)
         where F: FnMut(&T)
     {
-        let list = self.list.read().expect("Rumor store lock poisoned");
+        let list = self.read_entries();
         if let Some(sublist) = list.get(key) {
             if let Some(rumor) = sublist.get(member_id) {
                 with_closure(rumor);
@@ -451,7 +448,7 @@ impl<T> RumorStore<T> where T: Rumor
     pub fn assert_rumor_is<P>(&self, key: &str, member_id: &str, mut predicate: P)
         where P: FnMut(&T) -> bool
     {
-        let list = self.list.read().expect("Rumor store lock poisoned");
+        let list = self.read_entries();
         if let Some(sublist) = list.get(key) {
             if let Some(rumor) = sublist.get(member_id) {
                 assert!(predicate(rumor), "{} failed predicate", member_id);
@@ -464,7 +461,7 @@ impl<T> RumorStore<T> where T: Rumor
     }
 
     pub fn contains_rumor(&self, key: &str, id: &str) -> bool {
-        let list = self.list.read().expect("Rumor store lock poisoned");
+        let list = self.read_entries();
         list.get(key).and_then(|l| l.get(id)).is_some()
     }
 
@@ -473,6 +470,23 @@ impl<T> RumorStore<T> where T: Rumor
     /// We don't care if this repeats - it just needs to be unique for any given two states, which
     /// it will be.
     fn increment_update_counter(&self) { self.update_counter.fetch_add(1, Ordering::Relaxed); }
+
+    /// Find rumors in our rumor store that have expired.
+    fn expired(&self, expiration_date: DateTime<Utc>) -> Vec<T> {
+        self.read_entries()
+            .values()
+            .flat_map(HashMap::values)
+            .filter(|&rumor| rumor.ttl().expiration < expiration_date)
+            .cloned()
+            .collect()
+    }
+
+    /// Remove all rumors that have expired from our rumor store.
+    pub fn purge_expired(&self, expiration_date: DateTime<Utc>) {
+        self.expired(expiration_date)
+            .iter()
+            .for_each(|r| self.remove(r.key(), r.id()))
+    }
 }
 
 impl RumorStore<Service> {
