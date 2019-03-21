@@ -303,8 +303,7 @@ pub fn populate_membership_rumors(server: &Server, target: &Member, swim: &mut S
     // NOTE: the way this is currently implemented, this is grabbing
     // the 5 coolest (but still warm!) Member rumors.
     let rumors: Vec<RumorKey> = server
-        .rumor_heat
-        .currently_hot_rumors(&target.id)
+        .keys_for_live_rumors()
         .into_iter()
         .filter(|ref r| r.kind == RumorType::Member)
         .take(5) // TODO (CM): magic number!
@@ -314,12 +313,6 @@ pub fn populate_membership_rumors(server: &Server, target: &Member, swim: &mut S
         if let Some(member) = server.member_list.membership_for(&rkey.key()) {
             swim.membership.push(member);
         }
-    }
-    // We don't want to update the heat for rumors that we know we are sending to a target that is
-    // confirmed dead; the odds are, they won't receive them. Lets spam them a little harder with
-    // rumors.
-    if !server.member_list.persistent_and_confirmed(target) {
-        server.rumor_heat.cool_rumors(&target.id, &rumors);
     }
 }
 

@@ -2,10 +2,8 @@
 //! `Suspect` rumors to `Confirmed`, and `Confirmed` rumors to
 //! `Departed`. This also expires any rumors that have expiration dates.
 
-use crate::{rumor::{RumorKey,
-                    RumorType},
-            server::{timing::Timing,
-                     Server}};
+use crate::server::{timing::Timing,
+                    Server};
 use chrono::offset::Utc;
 use std::{thread,
           time::Duration};
@@ -22,28 +20,13 @@ impl Expire {
 
     pub fn run(&self) {
         loop {
-            let newly_confirmed_members =
-                self.server
-                    .member_list
-                    .members_expired_to_confirmed(self.timing.suspicion_timeout_duration());
+            self.server
+                .member_list
+                .members_expired_to_confirmed(self.timing.suspicion_timeout_duration());
 
-            for id in newly_confirmed_members {
-                self.server
-                    .rumor_heat
-                    .start_hot_rumor(RumorKey::new(RumorType::Member, &id, ""));
-            }
-
-            let newly_departed_members =
-                self.server
-                    .member_list
-                    .members_expired_to_departed(self.timing.departure_timeout_duration());
-
-            for id in newly_departed_members {
-                self.server.rumor_heat.purge(&id);
-                self.server
-                    .rumor_heat
-                    .start_hot_rumor(RumorKey::new(RumorType::Member, &id, ""));
-            }
+            self.server
+                .member_list
+                .members_expired_to_departed(self.timing.departure_timeout_duration());
 
             // JB TODO: How does this work for members, since members aren't /quite/
             // the same kind of rumor

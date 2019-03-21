@@ -87,6 +87,8 @@ impl Rumor for Departure {
     fn uuid(&self) -> &str { &self.uuid }
 
     fn ttl(&self) -> &RumorTTL { &self.ttl }
+
+    fn ttl_as_mut(&mut self) -> &mut RumorTTL { &mut self.ttl }
 }
 
 impl PartialOrd for Departure {

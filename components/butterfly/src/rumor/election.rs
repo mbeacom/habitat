@@ -222,6 +222,8 @@ impl Rumor for Election {
     fn uuid(&self) -> &str { &self.uuid }
 
     fn ttl(&self) -> &RumorTTL { &self.ttl }
+
+    fn ttl_as_mut(&mut self) -> &mut RumorTTL { &mut self.ttl }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -287,6 +289,8 @@ impl Rumor for ElectionUpdate {
     fn uuid(&self) -> &str { &self.0.uuid }
 
     fn ttl(&self) -> &RumorTTL { &self.0.ttl }
+
+    fn ttl_as_mut(&mut self) -> &mut RumorTTL { &mut self.0.ttl }
 }
 
 #[cfg(test)]

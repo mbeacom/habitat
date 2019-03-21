@@ -100,7 +100,7 @@ impl Push {
                     if self.server.member_list.pingable(&member)
                        && !self.server.member_list.persistent_and_confirmed(&member)
                     {
-                        let rumors = self.server.rumor_heat.currently_hot_rumors(&member.id);
+                        let rumors = self.server.keys_for_live_rumors();
                         if !rumors.is_empty() {
                             let sc = self.server.clone();
 
@@ -358,7 +358,6 @@ impl PushWorker {
                 }
             }
         }
-        self.server.rumor_heat.cool_rumors(&member.id, &rumors);
     }
 
     /// Given a rumorkey, creates a protobuf rumor for sharing.

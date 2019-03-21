@@ -9,7 +9,6 @@
 pub mod dat_file;
 pub mod departure;
 pub mod election;
-pub mod heat;
 pub mod service;
 pub mod service_config;
 pub mod service_file;
@@ -118,6 +117,15 @@ impl RumorTTL {
         Ok(RumorTTL { expiration:   exp.with_timezone(&Utc),
                       last_refresh: lref.with_timezone(&Utc), })
     }
+
+    // JB TODO: this is sub-optimal and doesn't account for varying expiration times for different
+    // rumors. Fix this.
+    pub fn refresh(&mut self) {
+        let now = Utc::now();
+
+        self.expiration = now + Duration::hours(1);
+        self.last_refresh = now;
+    }
 }
 
 impl Serialize for RumorTTL {
@@ -164,6 +172,7 @@ pub trait Rumor: Message<ProtoRumor> + Sized {
     fn merge(&mut self, other: Self) -> bool;
     fn uuid(&self) -> &str;
     fn ttl(&self) -> &RumorTTL;
+    fn ttl_as_mut(&mut self) -> &mut RumorTTL;
 }
 
 impl<'a, T: Rumor> From<&'a T> for RumorKey {
@@ -365,11 +374,11 @@ impl<T> RumorStore<T> where T: Rumor
         self.update_counter.swap(0, Ordering::Relaxed)
     }
 
-    pub fn encode(&self, key: &str, member_id: &str) -> Result<Vec<u8>> {
+    pub fn encode(&self, key: &str, id: &str) -> Result<Vec<u8>> {
         let list = self.read_entries();
-        match list.get(key).and_then(|l| l.get(member_id)) {
+        match list.get(key).and_then(|l| l.get(id)) {
             Some(rumor) => rumor.clone().write_to_bytes(),
-            None => Err(Error::NonExistentRumor(String::from(member_id), String::from(key))),
+            None => Err(Error::NonExistentRumor(String::from(id), String::from(key))),
         }
     }
 
@@ -434,26 +443,26 @@ impl<T> RumorStore<T> where T: Rumor
         }
     }
 
-    pub fn with_rumor<F>(&self, key: &str, member_id: &str, mut with_closure: F)
+    pub fn with_rumor<F>(&self, key: &str, id: &str, mut with_closure: F)
         where F: FnMut(&T)
     {
         let list = self.read_entries();
         if let Some(sublist) = list.get(key) {
-            if let Some(rumor) = sublist.get(member_id) {
+            if let Some(rumor) = sublist.get(id) {
                 with_closure(rumor);
             }
         }
     }
 
-    pub fn assert_rumor_is<P>(&self, key: &str, member_id: &str, mut predicate: P)
+    pub fn assert_rumor_is<P>(&self, key: &str, id: &str, mut predicate: P)
         where P: FnMut(&T) -> bool
     {
         let list = self.read_entries();
         if let Some(sublist) = list.get(key) {
-            if let Some(rumor) = sublist.get(member_id) {
-                assert!(predicate(rumor), "{} failed predicate", member_id);
+            if let Some(rumor) = sublist.get(id) {
+                assert!(predicate(rumor), "{} failed predicate", id);
             } else {
-                panic!("member_id {} not present", member_id);
+                panic!("id {} not present", id);
             }
         } else {
             panic!("No rumors for {} present", key);
@@ -471,21 +480,43 @@ impl<T> RumorStore<T> where T: Rumor
     /// it will be.
     fn increment_update_counter(&self) { self.update_counter.fetch_add(1, Ordering::Relaxed); }
 
-    /// Find rumors in our rumor store that have expired.
-    fn expired(&self, expiration_date: DateTime<Utc>) -> Vec<T> {
+    /// Partition the rumors in our rumor store into those that are expired and those that aren't.
+    /// The return value is (expired, not_expired)
+    fn partitioned_rumors(&self, expiration_date: DateTime<Utc>) -> (Vec<T>, Vec<T>) {
         self.read_entries()
             .values()
             .flat_map(HashMap::values)
-            .filter(|&rumor| rumor.ttl().expiration < expiration_date)
             .cloned()
-            .collect()
+            .partition(|rumor| rumor.ttl().expiration < expiration_date)
+    }
+
+    pub fn expired_rumors(&self, expiration_date: DateTime<Utc>) -> Vec<T> {
+        self.partitioned_rumors(expiration_date).0
+    }
+
+    pub fn live_rumors(&self, expiration_date: DateTime<Utc>) -> Vec<T> {
+        self.partitioned_rumors(expiration_date).1
     }
 
     /// Remove all rumors that have expired from our rumor store.
     pub fn purge_expired(&self, expiration_date: DateTime<Utc>) {
-        self.expired(expiration_date)
+        self.expired_rumors(expiration_date)
             .iter()
             .for_each(|r| self.remove(r.key(), r.id()))
+    }
+
+    pub fn refresh(&self, key: &str, id: &str) {
+        let mut list = self.write_entries();
+        if let Some(v) = list.get_mut(key).and_then(|r| r.get_mut(id)) {
+            v.ttl_as_mut().refresh();
+        }
+    }
+
+    pub fn rumor_keys(&self) -> Vec<RumorKey> {
+        self.live_rumors(Utc::now())
+            .iter()
+            .map(RumorKey::from)
+            .collect()
     }
 }
 

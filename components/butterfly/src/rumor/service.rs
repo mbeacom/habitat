@@ -191,6 +191,8 @@ impl Rumor for Service {
     fn uuid(&self) -> &str { &self.uuid }
 
     fn ttl(&self) -> &RumorTTL { &self.ttl }
+
+    fn ttl_as_mut(&mut self) -> &mut RumorTTL { &mut self.ttl }
 }
 
 #[derive(Debug, Clone, Serialize)]
