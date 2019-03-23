@@ -173,6 +173,7 @@ pub trait Rumor: Message<ProtoRumor> + Sized {
     fn uuid(&self) -> &str;
     fn ttl(&self) -> &RumorTTL;
     fn ttl_as_mut(&mut self) -> &mut RumorTTL;
+    fn refresh(&mut self) { self.ttl_as_mut().refresh(); }
 }
 
 impl<'a, T: Rumor> From<&'a T> for RumorKey {
@@ -392,7 +393,10 @@ impl<T> RumorStore<T> where T: Rumor
 
     /// Insert a rumor into the Rumor Store. Returns true if the value didn't exist or if it was
     /// mutated; if nothing changed, returns false.
-    pub fn insert(&self, rumor: T) -> bool {
+    pub fn insert(&self, mut rumor: T) -> bool {
+        // If we're inserting a rumor, it must be new, so let's ensure the expiration is refreshed
+        rumor.refresh();
+
         let mut list = self.write_entries();
         let rumors = list.entry(String::from(rumor.key()))
                          .or_insert_with(HashMap::new);

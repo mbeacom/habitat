@@ -562,9 +562,6 @@ impl Server {
 
     /// Insert a member to the `MemberList`, and update its `RumorKey` appropriately.
     pub fn insert_member(&self, member: Member, health: Health) {
-        // NOTE: This sucks so much right here. Check out how we allocate no matter what, because
-        // of just how the logic goes. The value of the trace is really high, though, so we deal
-        // with it as best we can, with our head held high.
         let member_id = member.id.clone();
         let trace_incarnation = member.incarnation;
         let trace_health = health;
@@ -635,9 +632,7 @@ impl Server {
                 health = Health::Alive;
             }
         }
-        // NOTE: This sucks so much right here. Check out how we allocate no matter what, because
-        // of just how the logic goes. The value of the trace is really high, though, so we carry
-        // on, knowing life is still worth living.
+
         let member_id = member.id.clone();
         let trace_incarnation = member.incarnation;
         let trace_health = health;
