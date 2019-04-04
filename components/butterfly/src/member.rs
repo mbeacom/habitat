@@ -1,17 +1,15 @@
 //! Tracks membership. Contains both the `Member` struct and the `MemberList`.
 
-use std::{collections::{hash_map,
-                        HashMap},
-          fmt,
-          net::SocketAddr,
-          num::ParseIntError,
-          ops::Add,
-          result,
-          str::FromStr,
-          sync::{atomic::{AtomicUsize,
-                          Ordering},
-                 RwLock}};
-
+pub use crate::protocol::swim::Health;
+use crate::{error::{Error,
+                    Result},
+            protocol::{self,
+                       newscast,
+                       swim as proto,
+                       FromProto},
+            rumor::{RumorKey,
+                    RumorPayload,
+                    RumorType}};
 use habitat_core::util::ToI64;
 use prometheus::IntGaugeVec;
 use rand::{seq::{IteratorRandom,
@@ -24,20 +22,20 @@ use serde::{de,
             Deserializer,
             Serialize,
             Serializer};
+use std::{collections::{hash_map,
+                        HashMap},
+          fmt,
+          net::SocketAddr,
+          num::ParseIntError,
+          ops::Add,
+          result,
+          str::FromStr,
+          sync::{atomic::{AtomicUsize,
+                          Ordering},
+                 RwLock}};
 use time::{Duration,
            SteadyTime};
 use uuid::Uuid;
-
-pub use crate::protocol::swim::Health;
-use crate::{error::{Error,
-                    Result},
-            protocol::{self,
-                       newscast,
-                       swim as proto,
-                       FromProto},
-            rumor::{RumorKey,
-                    RumorPayload,
-                    RumorType}};
 
 /// How many nodes do we target when we need to run PingReq.
 const PINGREQ_TARGETS: usize = 5;
@@ -201,6 +199,21 @@ impl From<Member> for proto::Member {
 pub struct Membership {
     pub member: Member,
     pub health: Health,
+}
+
+impl fmt::Display for Membership {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,
+               "Member i/{} m/{} ad/{} sp/{} gp/{} p/{} d/{} h/{:?}",
+               self.member.incarnation,
+               self.member.id,
+               self.member.address,
+               self.member.swim_port,
+               self.member.gossip_port,
+               self.member.persistent,
+               self.member.departed,
+               self.health)
+    }
 }
 
 impl Membership {

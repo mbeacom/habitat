@@ -35,8 +35,9 @@ use crate::{error::{Error,
                     RumorPayload,
                     RumorType}};
 use chrono::Duration;
-use std::ops::{Deref,
-               DerefMut};
+use std::{fmt,
+          ops::{Deref,
+                DerefMut}};
 use uuid::Uuid;
 
 pub trait ElectionRumor {
@@ -59,6 +60,14 @@ pub struct Election {
     pub votes:         Vec<String>,
     pub uuid:          String,
     pub ttl:           RumorLifespan,
+}
+
+impl fmt::Display for Election {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,
+               "Election m/{} sg/{}, t/{}, su/{}, st/{:?}",
+               self.member_id, self.service_group, self.term, self.suitability, self.status)
+    }
 }
 
 impl Election {
@@ -233,6 +242,18 @@ impl Rumor for Election {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ElectionUpdate(Election);
+
+impl fmt::Display for ElectionUpdate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,
+               "ElectionUpdate m/{} sg/{}, t/{}, su/{}, st/{:?}",
+               self.0.member_id,
+               self.0.service_group,
+               self.0.term,
+               self.0.suitability,
+               self.0.status)
+    }
+}
 
 impl ElectionUpdate {
     pub fn new<S1>(member_id: S1,

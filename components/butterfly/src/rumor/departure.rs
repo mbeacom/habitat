@@ -29,7 +29,8 @@ use crate::{error::{Error,
                     RumorPayload,
                     RumorType}};
 use chrono::Duration;
-use std::cmp::Ordering;
+use std::{cmp::Ordering,
+          fmt};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,6 +38,12 @@ pub struct Departure {
     pub member_id: String,
     pub uuid:      String,
     pub ttl:       RumorLifespan,
+}
+
+impl fmt::Display for Departure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Departure m/{}", self.member_id)
+    }
 }
 
 impl Departure {

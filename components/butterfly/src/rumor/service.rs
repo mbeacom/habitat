@@ -32,6 +32,7 @@ use serde::{ser::SerializeStruct,
             Serialize,
             Serializer};
 use std::{cmp::Ordering,
+          fmt,
           mem,
           result,
           str::FromStr};
@@ -49,6 +50,14 @@ pub struct Service {
     pub sys:           SysInfo,
     pub uuid:          String,
     pub ttl:           RumorLifespan,
+}
+
+impl fmt::Display for Service {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,
+               "Service i/{} m/{} sg/{}",
+               self.incarnation, self.member_id, self.service_group)
+    }
 }
 
 // Ensures that `cfg` is rendered as a map, and not an array of bytes
@@ -197,7 +206,8 @@ impl Rumor for Service {
 
     fn lifespan_as_mut(&mut self) -> &mut RumorLifespan { &mut self.ttl }
 
-    fn ttl() -> Duration { Duration::hours(1) }
+    // TODO JB: don't leave this at this value - for testing only
+    fn ttl() -> Duration { Duration::minutes(1) }
 }
 
 #[derive(Debug, Clone, Serialize)]
